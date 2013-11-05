@@ -15,6 +15,8 @@ How?
 The top of the script has some settings that can be tuned.  Drop into $site\_path/hooks
 or configure a separate hooks directory in gerrit.config and put it there.
 
+About gerrit hooks: https://gerrit.googlecode.com/svn/documentation/2.1.2/config-hooks.html
+
 The MIT License (MIT)
 =====================
 
