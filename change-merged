@@ -1,0 +1,140 @@
+#!/usr/bin/env python
+#
+# Puppet Gerrit Workflow Hook
+# Stephen Benjamin <stephen@bitbin.de>
+# 5.11.2013
+#
+# Gerrit Calls After a Successful Merge:
+#
+#   change-merged --change <change id> --change-url <change url> \
+#        --project <project name> --branch <branch> \
+#        --submitter <submitter> --commit <sha1>
+#
+# Configure the hooks directory in $site_path/etc/gerrit.config
+# and place this file in the hooks directory, and set it
+# executable.
+#
+####################################################################
+# Settings:
+
+# DIRECTORY TEMPLATE
+# This is where we publish the puppet manifests. Directory template
+# may use $change, $url, $project, $branch, $submitter, and $commit
+#
+# When using one monolithic puppet git repo use:
+DIRECTORY_TEMPLATE="/etc/puppet/environments/$branch"
+
+# When using individual repos use:
+# DIRECTORY_TEMPLATE="/etc/puppet/environments/$branch/$project"
+
+# Can restrict auto publishing to certain environments only
+RESTRICT_ENVIRONMENTS = False
+ALLOWED_ENVIRONMENTS = ( "development",
+                         "quality",
+                       )
+
+# Gerrit hooks are idiotic, and apply globally.  We might store
+# things other than puppet manifests, so...
+FILTER_PROJECTS = False
+# Below uses the prefix "puppet-"
+REGEX_FILTER = "^puppet\-.*"
+
+# Ownership settings for publishing
+USER="puppet"
+GROUP="gerrit"
+DIR_MODE=0775
+FILE_MODE=0664
+
+# Location where Gerrit keeps its git repsoitories
+GERRIT_GIT_REPOS = "/opt/git"
+
+# Location of git binary
+GIT_BINARY="/usr/bin/git"
+
+#####################################################################
+
+
+from string import Template
+from optparse import OptionParser
+from pwd import getpwnam
+from grp import getgrnam
+import os
+import tempfile
+import shutil
+import subprocess
+import sys
+import re
+
+# Option Parsing
+parser = OptionParser()
+parser.add_option("--change", dest="change", help="Change ID")
+parser.add_option("--change-url", dest="changeurl", help="Change URL")
+parser.add_option("--project", dest="project", help="Project Name")
+parser.add_option("--branch", dest="branch", help="Branch")
+parser.add_option("--submitter", dest="submitter", help="Submitter")
+parser.add_option("--commit", dest="commit", help="Commit ID")
+
+if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit()
+
+options = vars(parser.parse_args()[0])
+
+# Check if we're allowed here or not
+if RESTRICT_ENVIRONMENTS and options["branch"] not in ALLOWED_ENVIRONMENTS: 
+    print "Environment %s disallowed." % options["branch"]
+    sys.exit(0)
+
+# Check if filter matches
+if FILTER_PROJECTS and not re.match(REGEX_FILTER,options["project"]):
+    print "Project doesn't match defined filter."
+    sys.exit(0)
+
+# Display Output
+for (k, v) in options.iteritems():
+    print "%s: %s" % (k.title(), v)
+
+print ""
+
+# Process Templates
+destination = Template(DIRECTORY_TEMPLATE).substitute(options)
+
+# Clone repo into a temp dir
+git_repo = "%s/%s" % (GERRIT_GIT_REPOS, options["project"])
+temp_directory = tempfile.mkdtemp()
+devnull = open('/dev/null', 'w')
+result = subprocess.call([GIT_BINARY,"clone","-b",options["branch"],
+                        git_repo,temp_directory], stdout=devnull)
+
+# Publish to Puppet Environments Directory
+if result == 0:
+    # See if destination exists, and delete it if so
+    if os.path.exists(destination):
+        print "%s already exists, deleting... \n" % destination
+        shutil.rmtree(destination)
+        
+
+    print "Publishing %s:%s to %s...\n" % (options["project"],options["branch"],
+                                                 destination)
+    shutil.copytree(temp_directory, destination, ignore=shutil.ignore_patterns(".git")) 
+
+    print "Fixing permissions..."
+    gid = getgrnam(GROUP).gr_gid
+    uid = getpwnam(USER).pw_uid
+
+    for directory,subdirectories,files in os.walk(destination):
+        os.chmod(directory, DIR_MODE)
+        os.chown(directory, uid, gid)
+
+        for file in files:
+            file = directory + "/" + file
+            os.chown(file, uid, gid)
+            os.chmod(file, FILE_MODE)
+
+    print "Cleaning up... "
+    shutil.rmtree(temp_directory)
+
+    print "Bye!"
+else:
+    print "Unable to checkout repository."
+    sys.exit()
