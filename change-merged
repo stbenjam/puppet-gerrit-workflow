@@ -22,16 +22,14 @@
 # may use $change, $url, $project, $branch, $submitter, and $commit
 #
 # When using one monolithic puppet git repo use:
-DIRECTORY_TEMPLATE="/etc/puppet/environments/$branch"
+DIRECTORY_TEMPLATE = "/etc/puppet/environments/$branch"
 
 # When using individual repos use:
 # DIRECTORY_TEMPLATE="/etc/puppet/environments/$branch/$project"
 
 # Can restrict auto publishing to certain environments only
 RESTRICT_ENVIRONMENTS = False
-ALLOWED_ENVIRONMENTS = ( "development",
-                         "quality",
-                       )
+ALLOWED_ENVIRONMENTS = ("development", "quality")
 
 # Gerrit hooks are idiotic, and apply globally.  We might store
 # things other than puppet manifests, so...
@@ -40,16 +38,16 @@ FILTER_PROJECTS = False
 REGEX_FILTER = "^puppet\-.*"
 
 # Ownership settings for publishing
-USER="puppet"
-GROUP="gerrit"
-DIR_MODE=0775
-FILE_MODE=0664
+USER = "puppet"
+GROUP = "gerrit"
+DIR_MODE = 0775
+FILE_MODE = 0664
 
 # Location where Gerrit keeps its git repsoitories
 GERRIT_GIT_REPOS = "/opt/git"
 
 # Location of git binary
-GIT_BINARY="/usr/bin/git"
+GIT_BINARY = "/usr/bin/git"
 
 #####################################################################
 
@@ -81,17 +79,17 @@ if len(sys.argv) == 1:
 options = vars(parser.parse_args()[0])
 
 # Check if we're allowed here or not
-if RESTRICT_ENVIRONMENTS and options["branch"] not in ALLOWED_ENVIRONMENTS: 
+if RESTRICT_ENVIRONMENTS and options["branch"] not in ALLOWED_ENVIRONMENTS:
     print "Environment %s disallowed." % options["branch"]
     sys.exit(0)
 
 # Check if filter matches
-if FILTER_PROJECTS and not re.match(REGEX_FILTER,options["project"]):
+if FILTER_PROJECTS and not re.match(REGEX_FILTER, options["project"]):
     print "Project doesn't match defined filter."
     sys.exit(0)
 
 # Display Output
-for (k, v) in options.iteritems():
+for k, v in options.iteritems():
     print "%s: %s" % (k.title(), v)
 
 print ""
@@ -103,8 +101,8 @@ destination = Template(DIRECTORY_TEMPLATE).substitute(options)
 git_repo = "%s/%s" % (GERRIT_GIT_REPOS, options["project"])
 temp_directory = tempfile.mkdtemp()
 devnull = open('/dev/null', 'w')
-result = subprocess.call([GIT_BINARY,"clone","-b",options["branch"],
-                        git_repo,temp_directory], stdout=devnull)
+result = subprocess.call([GIT_BINARY, "clone", "-b", options["branch"],
+                          git_repo, temp_directory], stdout=devnull)
 
 # Publish to Puppet Environments Directory
 if result == 0:
@@ -112,17 +110,18 @@ if result == 0:
     if os.path.exists(destination):
         print "%s already exists, deleting... \n" % destination
         shutil.rmtree(destination)
-        
 
-    print "Publishing %s:%s to %s...\n" % (options["project"],options["branch"],
-                                                 destination)
-    shutil.copytree(temp_directory, destination, ignore=shutil.ignore_patterns(".git")) 
+    print "Publishing %s:%s to %s...\n" % (options["project"],
+                                           options["branch"], destination)
+
+    shutil.copytree(temp_directory, destination, ignore=
+                    shutil.ignore_patterns(".git"))
 
     print "Fixing permissions..."
     gid = getgrnam(GROUP).gr_gid
     uid = getpwnam(USER).pw_uid
 
-    for directory,subdirectories,files in os.walk(destination):
+    for directory, subdirectories, files in os.walk(destination):
         os.chmod(directory, DIR_MODE)
         os.chown(directory, uid, gid)
 
