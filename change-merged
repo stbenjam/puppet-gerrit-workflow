@@ -19,7 +19,8 @@
 
 # DIRECTORY TEMPLATE
 # This is where we publish the puppet manifests. Directory template
-# may use $change, $url, $project, $branch, $submitter, and $commit
+# may use $change, $url, $project, $branch, $submitter, and $commit.
+# Obviously most aren't really releavant, but they are there to use.
 #
 # When using one monolithic puppet git repo use:
 DIRECTORY_TEMPLATE = "/etc/puppet/environments/$branch"
@@ -57,6 +58,7 @@ from optparse import OptionParser
 from pwd import getpwnam
 from grp import getgrnam
 import os
+import datetime
 import tempfile
 import shutil
 import subprocess
@@ -76,9 +78,17 @@ if len(sys.argv) == 1:
     parser.print_help()
     sys.exit()
 
+# Make the options a dict
 options = vars(parser.parse_args()[0])
 
-# Check if we're allowed here or not
+
+# Display information passed to us
+for k, v in options.iteritems():
+    print "%s: %s" % (k.title(), v)
+
+print
+
+# Check if we're allowed in this environment or not
 if RESTRICT_ENVIRONMENTS and options["branch"] not in ALLOWED_ENVIRONMENTS:
     print "Environment %s disallowed." % options["branch"]
     sys.exit(0)
@@ -88,13 +98,7 @@ if FILTER_PROJECTS and not re.match(REGEX_FILTER, options["project"]):
     print "Project doesn't match defined filter."
     sys.exit(0)
 
-# Display Output
-for k, v in options.iteritems():
-    print "%s: %s" % (k.title(), v)
-
-print ""
-
-# Process Templates
+# Process destination template
 destination = Template(DIRECTORY_TEMPLATE).substitute(options)
 
 # Clone repo into a temp dir
@@ -116,6 +120,13 @@ if result == 0:
 
     shutil.copytree(temp_directory, destination, ignore=
                     shutil.ignore_patterns(".git"))
+
+    # Log a useful message in the directory
+    options["timestamp"] = str(datetime.datetime.now())
+
+    with open(destination + '/' + "autopublish.txt", 'w') as info:
+        info.write("# Hello, This puppet environment was automatically published.\n" +
+                   "# The relevant information is below.\n\n%s\n" % str(options))
 
     print "Fixing permissions..."
     gid = getgrnam(GROUP).gr_gid
