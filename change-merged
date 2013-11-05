@@ -151,4 +151,4 @@ if result == 0:
     print "Bye!"
 else:
     print "Unable to checkout repository."
-    sys.exit()
+    sys.exit(1)
