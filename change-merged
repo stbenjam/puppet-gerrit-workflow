@@ -50,6 +50,9 @@ GERRIT_GIT_REPOS = "/opt/git"
 # Location of git binary
 GIT_BINARY = "/usr/bin/git"
 
+# Log information in the published directory
+PUBLISH_INFO = True
+INFO_FILE = "autopublish.txt"
 #####################################################################
 
 
@@ -124,9 +127,10 @@ if result == 0:
     # Log a useful message in the directory
     options["timestamp"] = str(datetime.datetime.now())
 
-    with open(destination + '/' + "autopublish.txt", 'w') as info:
-        info.write("# Hello, This puppet environment was automatically published.\n" +
-                   "# The relevant information is below.\n\n%s\n" % str(options))
+    if PUBLISH_INFO:
+        with open(destination + '/' + INFO_FILE, 'w') as info:
+            info.write("# Hello, This puppet environment was automatically published.\n" +
+                       "# The relevant information is below.\n\n%s\n" % str(options))
 
     print "Fixing permissions..."
     gid = getgrnam(GROUP).gr_gid
